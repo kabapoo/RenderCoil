@@ -8,6 +8,7 @@ in vec2 TexCoord;
 // texture samplers
 // uniform sampler2D texture1;
 // uniform sampler2D texture2;
+uniform sampler2D equirectangularMap;
 
 // shading model
 uniform int modelType;
@@ -26,6 +27,8 @@ uniform float phongSpecularPower;
 uniform vec3 cookColor;
 uniform float cookRoughness;
 uniform vec3 cookFresnel;
+
+const vec2 invAtan = vec2(0.1591, 0.3183);
 
 float BlinnPhong(vec3 N, vec3 H, float g)
 {
@@ -71,6 +74,14 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 vec3 FresnelSchlick(float theta, vec3 F0)
 {
 	return F0 + (1.0 - F0) * pow(1.0 - theta, 5.0);
+}
+
+vec2 SampleSphericalMap(vec3 v)
+{
+	vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+	uv *= invAtan;
+	uv += 0.5;
+	return uv;
 }
 
 void main()
@@ -125,5 +136,8 @@ void main()
 	// gamma
 	color = pow(color, vec3(1.0/2.2));
 
-	FragColor = vec4(color, 1.0f);
+	vec2 uv = SampleSphericalMap(normalize(vec3(FragPos)));
+	vec3 env_color = texture(equirectangularMap, uv).rgb;
+
+	FragColor = vec4(env_color, 1.0f);
 }

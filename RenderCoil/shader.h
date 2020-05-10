@@ -13,6 +13,7 @@ class Shader
 {
 public:
     unsigned int ID;
+    Shader();
     // constructor generates the shader on the fly
     // ------------------------------------------------------------------------
     Shader(const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr);
@@ -20,6 +21,9 @@ public:
     // activate the shader
     // ------------------------------------------------------------------------
     void use();
+    // load shader
+    // ------------------------------------------------------------------------
+    void load(const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr);
     // utility uniform functions
     // ------------------------------------------------------------------------
     void setBool(const std::string &name, bool value) const;
