@@ -6,11 +6,12 @@ in vec3 Normal;
 in vec2 TexCoord;
 
 uniform samplerCube irradianceMap;
+uniform samplerCube prefilterMap;
+uniform sampler2D brdfLUT;
 
 // light
 uniform vec3 lightPos;
 uniform vec3 lightColor;
-uniform float lightIntensity;
 uniform int lightType;
 // view
 uniform vec3 viewPos;
@@ -18,13 +19,6 @@ uniform vec3 viewPos;
 uniform vec3 cookColor;
 uniform vec3 cookFresnel;
 uniform float cookRoughness;
-
-float BlinnPhong(vec3 N, vec3 H, float g)
-{
-	float spec = pow(max(dot(N, H), 0.0), g);
-
-	return spec;
-}
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -65,6 +59,11 @@ vec3 FresnelSchlick(float theta, vec3 F0)
 	return F0 + (1.0 - F0) * pow(1.0 - theta, 5.0);
 }
 
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}   
+
 void main()
 {
 	// linearly interpolate between both textures (80% container, 20% awesomeface)
@@ -72,7 +71,7 @@ void main()
 	vec3 L = normalize(lightPos - FragPos);
 	vec3 V = normalize(viewPos - FragPos);
 	vec3 H = normalize(L + V);
-	vec3 R = reflect(-L, N);
+	vec3 R = reflect(-V, N);
 
 	float distance = length(lightPos - FragPos);
 	float attenuation = 1.0 / (distance * distance);
@@ -98,9 +97,16 @@ void main()
 	// ambient lighting (we now use IBL as the ambient term)
     vec3 irradiance = texture(irradianceMap, N).rgb;
     vec3 diffuse      = irradiance * cookColor;
-    vec3 ambient = Kd * diffuse * 0.01;
+    
+	// sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
+    const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefilteredColor = textureLod(prefilterMap, R,  cookRoughness * MAX_REFLECTION_LOD).rgb;    
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), cookRoughness)).rg;
+    specular = prefilteredColor;// * (F * brdf.x + brdf.y);
+	
+	vec3 ambient = Kd * diffuse + specular;
 
-	vec3 color = ambient + result;
+	vec3 color = ambient;// + result;
 	
 	// HDR tonemapping
 	color = color / (color + vec3(1.0));

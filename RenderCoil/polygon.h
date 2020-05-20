@@ -37,3 +37,16 @@ public:
 
     void render();
 };
+
+
+class Quad
+{
+private:
+    unsigned int vao;
+    unsigned int vbo;
+
+public:
+    Quad();
+
+    void render();
+};

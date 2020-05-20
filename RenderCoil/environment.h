@@ -23,8 +23,7 @@ private:
 
 public:
     Cubemap();
-    Cubemap(const char* fname);
-    unsigned int GetID() const { return id; }
+    Cubemap(const char* vert, const char* frag, const char* fname);
 
     void setupFramebuffer();
     void loadHDR(const char* fname);
@@ -33,6 +32,7 @@ public:
     void render();
 
     unsigned int getID() const { return id; }
+    unsigned int getHDR() const { return hdr; }
     unsigned int getFBO() const { return fbo; }
     unsigned int getRBO() const { return rbo; }
     glm::mat4 getProjection() const { return projection; }
@@ -46,12 +46,39 @@ class Irradiancemap
 private:
     unsigned int id;
     Cubemap* pCubemap;
-    
     Cube cube;
 
 public:
-    Irradiancemap(Cubemap* p);
+    Irradiancemap(const char* vert, const char* frag, Cubemap* p);
+    unsigned int getID() const { return id; }
+    void create();
+    Shader* pShader;
+};
 
+class Prefilteredmap
+{
+private:
+    unsigned int id;
+    Cubemap* pCubemap;
+    Cube cube;
+
+public:
+    Prefilteredmap(const char* vert, const char* frag, Cubemap* p);
+    unsigned int getID() const { return id; }
+    void create();
+    Shader* pShader;
+};
+
+class BRDFmap
+{
+private:
+    unsigned int id;
+    Cubemap* pCubemap;
+    Quad quad;
+
+public:
+    BRDFmap(const char* vert, const char* frag, Cubemap* p);
+    unsigned int getID() const { return id; }
     void create();
     Shader* pShader;
 };
