@@ -1,40 +1,4 @@
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/random.hpp>
-
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <sstream>
-#include <iomanip>
-#include <ctime>
-#include <vector>
-#include <array>
-
-#include "stb_image.h"
-#include "stb_image_write.h"
-#include "stb_image_resize.h"
-#include "shader.h"
-#include "camera.h"
-#include "polygon.h"
-#include "light.h"
-#include "materialPhong.h"
-#include "materialCookTorrance.h"
-#include "environment.h"
-#include "sample_io.h"
-
-//#define REALTIME_RENDER
-#define SAMPLE_RENDER
-
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
-void processInput(GLFWwindow *window);
-bool saveScreenshot(std::string filename, int width, int height);
-void setCommonUniforms(Shader* pShader);
+#include "coil.h"
 
 // settings
 const unsigned int SCR_WIDTH = 640;
@@ -52,12 +16,6 @@ Cube cube;
 
 // light
 Light light(glm::vec3(0.8f, 1.5f, 2.3f), glm::vec3(1.0f, 1.0f, 1.0f), LIGHT_POINT);
-
-// Phong Material
-// color, specular power, glossiness
-MaterialPhong phong(glm::vec3(0.7f, 0.4f, 1.5f), 3.0f, 128.0f);      
-// color, specular power, roughness, fresnel
-MaterialCookTorrance cookTorrance(glm::vec3(0.7f, 0.1f, 0.1f), 0.6f, glm::vec3(0.1f, 0.1f, 0.1f));
 
 // timing
 double deltaTime = 0.0;	// time between current frame and last frame
@@ -114,27 +72,37 @@ int main(int argc, char* argv[])
 
     // build and compile our shader zprogram
     // ------------------------------------
-    //Shader phongShader("./shader_code/phong_shader.vert", "./shader_code/phong_shader.frag");
     Shader cookShader("./shader_code/cook_shader.vert", "./shader_code/cook_shader.frag");
-    //Shader pbrShader("./shader_code/pbr.vert", "./shader_code/pbr.frag");
-    Cubemap cubemap("./shader_code/cubemap.vert", "./shader_code/cubemap.frag", "../../img/envs/Newport_Loft/Newport_Loft_Ref.hdr");
+    Shader pbrShader("./shader_code/pbr.vert", "./shader_code/pbr.frag");
+    Cubemap cubemap("./shader_code/cubemap.vert", "./shader_code/cubemap.frag");
     Irradiancemap irradiancemap("./shader_code/cubemap.vert", "./shader_code/irradiance.frag", &cubemap);
     Prefilteredmap prefiltermap("./shader_code/cubemap.vert", "./shader_code/prefilter.frag", &cubemap);
     BRDFmap brdfmap("./shader_code/brdf.vert", "./shader_code/brdf.frag", &cubemap);
     Shader backgroundShader("./shader_code/background.vert", "./shader_code/background.frag");
-
-    /*pbrShader.use();
+#ifdef PBR
+    pbrShader.use();
     pbrShader.setInt("irradianceMap", 0);
     pbrShader.setInt("prefilterMap", 1);
     pbrShader.setInt("brdfLUT", 2);
-    pbrShader.setVec3("albedo", 0.5f, 0.2f, 0.2f);
-    pbrShader.setFloat("ao", 1.0f);*/
-
+#endif
+#ifdef COOK
     cookShader.use();
     cookShader.setInt("irradianceMap", 0);
     cookShader.setInt("prefilterMap", 1);
     cookShader.setInt("brdfLUT", 2);
-    
+#endif
+    int num = 0;
+    std::vector<std::string> list;
+    std::string env_list_path = env_path + "env_list.txt";
+    list = loadEnvList(env_list_path, num);
+    std::string env_name = env_path + list[0] + "/" + list[0] + "_Ref.hdr";
+    std::cout << env_name << std::endl;
+    cubemap.loadHDR(env_name.c_str());
+    cubemap.create();
+    irradiancemap.create();
+    prefiltermap.create();
+    brdfmap.create();
+
     backgroundShader.use();
     backgroundShader.setInt("environmentMap", 0);
     glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
@@ -145,8 +113,6 @@ int main(int argc, char* argv[])
     glfwGetFramebufferSize(window, &scrWidth, &scrHeight);
     glViewport(0, 0, scrWidth, scrHeight);
 
-    ParameterSample cookParams;
-    cookParams.makeCookNestedParams("../../img/cook/cook_r10_d20_c25/params.bin", 10, 20, 25);
 
     // render loop
     // -----------
@@ -164,34 +130,31 @@ int main(int argc, char* argv[])
 
         // render
         // ------
-        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-/*
-        // phong config
-        phongShader.use();
-        setCommonUniforms(&phongShader);
 
-        phongShader.setVec3("phongColor", phong.getColor());
-        phongShader.setFloat("phongGlossiness", phong.getGlossiness());
-        phongShader.setFloat("phongSpecularPower", phong.getSpecularPower());
+        glm::mat4 view = camera.GetViewMatrix();
 
         // pbr config
+#ifdef PBR
         pbrShader.use();
-        glm::mat4 view = camera.GetViewMatrix();
         glm::mat4 model = glm::mat4(1.0f);
         pbrShader.setMat4("projection", projection);
         pbrShader.setMat4("model", model);
         pbrShader.setMat4("view", view);
         pbrShader.setVec3("camPos", camera.Position);
-        pbrShader.setFloat("metallic", 0.1f);
-        pbrShader.setFloat("roughness", 0.1f);*/
-
+        pbrShader.setFloat("ao", 1.0f);
+        pbrShader.setVec3("albedo", 0.146f, 0.504f, 0.862f);
+        pbrShader.setFloat("metallic", 0.124f);
+        pbrShader.setFloat("roughness", 0.474f);
+#endif
+#ifdef COOK
         cookShader.use();
         setCommonUniforms(&cookShader);
-        cookShader.setVec3("cookColor", cookTorrance.getColor());
-        cookShader.setFloat("cookRoughness", cookTorrance.getRoughness());
-        cookShader.setVec3("cookFresnel", cookTorrance.getFresnel());
-
+        cookShader.setVec3("cookColor", glm::vec3(0.5f, 0.3f, 0.8f));
+        cookShader.setFloat("cookRoughness", 0.02f);
+        cookShader.setVec3("cookFresnel", glm::vec3(0.9f, 0.4f, 0.4f));
+#endif
         // bind pre-computed IBL data
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, irradiancemap.getID());
@@ -204,12 +167,11 @@ int main(int argc, char* argv[])
         
         // skybox
         backgroundShader.use();
-        glm::mat4 view = camera.GetViewMatrix();
         backgroundShader.setMat4("view", view);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap.getID());
         cube.render();
-       
+        
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
@@ -280,12 +242,210 @@ int main(int argc, char* argv[])
 
     // build and compile our shader zprogram
     // ------------------------------------
+    Shader pbrShader("./shader_code/pbr.vert", "./shader_code/pbr.frag");
     Shader cookShader("./shader_code/cook_shader.vert", "./shader_code/cook_shader.frag");
+    Cubemap cubemap("./shader_code/cubemap.vert", "./shader_code/cubemap.frag");
+    Irradiancemap irradiancemap("./shader_code/cubemap.vert", "./shader_code/irradiance.frag", &cubemap);
+    Prefilteredmap prefiltermap("./shader_code/cubemap.vert", "./shader_code/prefilter.frag", &cubemap);
+    BRDFmap brdfmap("./shader_code/brdf.vert", "./shader_code/brdf.frag", &cubemap);
+    Shader backgroundShader("./shader_code/background.vert", "./shader_code/background.frag");
+
+    pbrShader.use();
+    pbrShader.setInt("irradianceMap", 0);
+    pbrShader.setInt("prefilterMap", 1);
+    pbrShader.setInt("brdfLUT", 2);
+
+    cookShader.use();
+    cookShader.setInt("irradianceMap", 0);
+    cookShader.setInt("prefilterMap", 1);
+    cookShader.setInt("brdfLUT", 2);
+
+    backgroundShader.use();
+    backgroundShader.setInt("environmentMap", 0);
+    glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    backgroundShader.setMat4("projection", projection);
+
+    ParameterSample params;
+    int c = 10000;
+    int d = 0;
+    int r = 1;
+#ifdef PBR
+    std::string name = "pbr_c" + std::to_string(c);
+    if (d != 0) name = name + "_d" + std::to_string(d);
+    name = name + "_r" + std::to_string(r);
+    std::string readPath = "../../img/pbr5/" + name + "_params.bin";
+    std::vector<std::array<float, 5>> samples = params.readPBRParams(readPath.c_str());
+#endif
+#ifdef COOK
+    std::string name = "cook_c" + std::to_string(c);
+    if (d != 0) name = name + "_d" + std::to_string(d);
+    name = name + "_r" + std::to_string(r);
+    std::string readPath = "../../img/cook/" + name + "_params.bin";
+    std::vector<std::array<float, 7>> samples = params.readCookParams(readPath.c_str());
+#endif
+    // loading env list
+    int num = 0;
+    std::vector<std::string> list;
+    std::string env_list_path = env_path + "env_list.txt";
+    list = loadEnvList(env_list_path, num);
+    // sample size for loop
+    int sampleSize = samples.size();
+    int sampleBatch = sampleSize / 10;
+    for (int j = 0; j < num; ++j)
+    {
+        std::string env_name = env_path + list[j] + "/" + list[j] + "_Ref.hdr";
+        cubemap.loadHDR(env_name.c_str());
+        cubemap.create();
+        irradiancemap.create();
+        prefiltermap.create();
+        brdfmap.create();
+
+        // then before rendering, configure the viewport to the original framebuffer's screen dimensions
+        int scrWidth, scrHeight;
+        glfwGetFramebufferSize(window, &scrWidth, &scrHeight);
+        glViewport(0, 0, scrWidth, scrHeight);
+
+        for (int i = 0; i < sampleBatch; ++i)
+        {
+            int sampleIndex = sampleBatch * j + i;
+            // per-frame time logic
+                // --------------------
+            double currentFrame = glfwGetTime();
+            deltaTime = currentFrame - lastFrame;
+            lastFrame = currentFrame;
+
+            // render
+            // ------
+            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#ifdef PBR
+            std::array<float, 5> param = samples[i];
+            pbrShader.use();
+            glm::mat4 view = camera.GetViewMatrix();
+            glm::mat4 model = glm::mat4(1.0f);
+            pbrShader.setMat4("projection", projection);
+            pbrShader.setMat4("model", model);
+            pbrShader.setMat4("view", view);
+            pbrShader.setVec3("camPos", camera.Position);
+            pbrShader.setVec3("albedo", param[0], param[1], param[2]);
+            pbrShader.setFloat("ao", 1.0f);
+            pbrShader.setFloat("metallic", param[3]);
+            pbrShader.setFloat("roughness", param[4]);
+
+            std::string path = "../../img/pbr5/";
+            path = path + name + "/pbr";
+#endif
+#ifdef COOK
+            std::array<float, 7> param = samples[sampleIndex];
+            cookShader.use();
+            setCommonUniforms(&cookShader);
+            cookShader.setVec3("cookColor", glm::vec3(param[0], param[1], param[2]));
+            cookShader.setFloat("cookRoughness", param[3]);
+            cookShader.setVec3("cookFresnel", glm::vec3(param[4], param[5], param[6]));
+
+            std::string path = "../../img/cook/";
+            path = path + name + "/cook";
+#endif
+            // bind pre-computed IBL data
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, irradiancemap.getID());
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, prefiltermap.getID());
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, brdfmap.getID());
+
+            sphere.render();
+            
+            std::string number = std::to_string(sampleIndex);
+            std::stringstream ss;
+            ss << std::setw(5) << std::setfill('0') << number;
+            path = path + ss.str() + ".jpg";
+            saveScreenshot(path, SCR_WIDTH / 10, SCR_HEIGHT / 10);
+            
+            // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
+            // -------------------------------------------------------------------------------
+            glfwSwapBuffers(window);
+            glfwPollEvents();
+        }
+    }
+
+    // optional: de-allocate all resources once they've outlived their purpose:
+    // ------------------------------------------------------------------------
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
+
+    // glfw: terminate, clearing all previously allocated GLFW resources.
+    // ------------------------------------------------------------------
+    glfwTerminate();
+    return 0;
+}
+#endif
+
+#ifdef ERROR_RENDER
+int main(int argc, char* argv[])
+{
+    srand((unsigned int)time(0));
+    // glfw: initialize and configure
+    // ------------------------------
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // uncomment this statement to fix compilation on OS X
+#endif
+
+    // glfw window creation
+    // --------------------
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Renderer", NULL, NULL);
+    glfwMakeContextCurrent(window);
+    if (window == NULL)
+    {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
+
+    // tell GLFW to capture our mouse
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    // glad: load all OpenGL function pointers
+    // ---------------------------------------
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
+
+    // configure global opengl state
+    // -----------------------------
+    glEnable(GL_DEPTH_TEST);
+    // set depth function to less than AND equal for skybox depth trick.
+    glDepthFunc(GL_LEQUAL);
+    // enable seamless cubemap sampling for lower mip levels in the pre-filter map.
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+    // build and compile our shader zprogram
+    // ------------------------------------
+    //Shader phongShader("./shader_code/phong_shader.vert", "./shader_code/phong_shader.frag");
+    Shader cookShader("./shader_code/cook_shader.vert", "./shader_code/cook_error.frag");
+    Shader pbrShader("./shader_code/pbr.vert", "./shader_code/pbr_error.frag");
     Cubemap cubemap("./shader_code/cubemap.vert", "./shader_code/cubemap.frag", "../../img/envs/Newport_Loft/Newport_Loft_Ref.hdr");
     Irradiancemap irradiancemap("./shader_code/cubemap.vert", "./shader_code/irradiance.frag", &cubemap);
     Prefilteredmap prefiltermap("./shader_code/cubemap.vert", "./shader_code/prefilter.frag", &cubemap);
     BRDFmap brdfmap("./shader_code/brdf.vert", "./shader_code/brdf.frag", &cubemap);
     Shader backgroundShader("./shader_code/background.vert", "./shader_code/background.frag");
+
+    pbrShader.use();
+    pbrShader.setInt("irradianceMap", 0);
+    pbrShader.setInt("prefilterMap", 1);
+    pbrShader.setInt("brdfLUT", 2);
 
     cookShader.use();
     cookShader.setInt("irradianceMap", 0);
@@ -302,14 +462,42 @@ int main(int argc, char* argv[])
     glfwGetFramebufferSize(window, &scrWidth, &scrHeight);
     glViewport(0, 0, scrWidth, scrHeight);
 
-    ParameterSample cookParams;
-    //cookParams.makeCookParams("../../img/cook/cook_r100_c50/params.bin", 100, 50);
-    std::vector<std::array<float, 7>> samples = cookParams.readCookParams("../../img/cook/cook_r10_d20_c25/params.bin");
+    ParameterSample params;
+    int c = 10000;
+    int d = 0;
+    int r = 1;
+    int img_num = 3000;
+#ifdef COOK
+    std::string _type = "cook";
+#endif
+#ifdef PBR
+    std::string _type = "pbr5";
+#endif
+    std::string name = _type + "_c" + std::to_string(c);
+    if (d != 0) name = name + "_d" + std::to_string(d);
+    name = name + "_r" + std::to_string(r);
+    std::string testPath = "../../img/" + _type + "/params/" + name + "_test.bin";
+    std::string predictPath = "../../img/" + _type + "/params/" + name + "_predict.bin";
+#ifdef COOK
+    std::vector<std::array<float, 7>> tests = params.readCookBinary(testPath.c_str(), img_num);
+    std::vector<std::array<float, 7>> predicts = params.readCookBinary(predictPath.c_str(), img_num);
+#endif
+#ifdef PBR
+    std::vector<std::array<float, 5>> tests = params.readPBRBinary(testPath.c_str(), img_num);
+    std::vector<std::array<float, 5>> predicts = params.readPBRBinary(predictPath.c_str(), img_num);
+#endif
+    if (tests.size() != predicts.size())
+    {
+        std::cout << "test and predict size not match\n";
+        return 0;
+    }
 
-    for (int i = 0; i < samples.size(); ++i)
+    // render loop
+    // -----------
+    for (int i = 0; i < tests.size(); ++i)
     {
         // per-frame time logic
-            // --------------------
+        // --------------------
         double currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
@@ -323,14 +511,40 @@ int main(int argc, char* argv[])
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        std::array<float, 7> param = samples[i];
+        glm::mat4 view = camera.GetViewMatrix();
+        
+        // pbr config
+#ifdef PBR
+        std::array<float, 5> test_params = tests[i];
+        std::array<float, 5> predict_params = predicts[i];
+
+        pbrShader.use();
+        glm::mat4 model = glm::mat4(1.0f);
+        pbrShader.setMat4("projection", projection);
+        pbrShader.setMat4("model", model);
+        pbrShader.setMat4("view", view);
+        pbrShader.setVec3("camPos", camera.Position);
+        pbrShader.setFloat("ao", 1.0f);
+        pbrShader.setVec3("albedo1", test_params[0], test_params[1], test_params[2]);
+        pbrShader.setFloat("metallic1", test_params[3]);
+        pbrShader.setFloat("roughness1", test_params[4]);
+        pbrShader.setVec3("albedo2", predict_params[0], predict_params[1], predict_params[2]);
+        pbrShader.setFloat("metallic2", predict_params[3]);
+        pbrShader.setFloat("roughness2", predict_params[4]);
+#endif
+#ifdef COOK
+        std::array<float, 7> test_params = tests[i];
+        std::array<float, 7> predict_params = predicts[i];
 
         cookShader.use();
         setCommonUniforms(&cookShader);
-        cookShader.setVec3("cookColor", glm::vec3(param[0], param[1], param[2]));
-        cookShader.setFloat("cookRoughness", param[3]);
-        cookShader.setVec3("cookFresnel", glm::vec3(param[4], param[5], param[6]));
-
+        cookShader.setVec3("cookColor1", test_params[0], test_params[1], test_params[2]);
+        cookShader.setFloat("cookRoughness1", test_params[3]);
+        cookShader.setVec3("cookFresnel1", test_params[4], test_params[5], test_params[6]);
+        cookShader.setVec3("cookColor2", predict_params[0], predict_params[1], predict_params[2]);
+        cookShader.setFloat("cookRoughness2", predict_params[3]);
+        cookShader.setVec3("cookFresnel2", predict_params[4], predict_params[5], predict_params[6]);
+#endif
         // bind pre-computed IBL data
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, irradiancemap.getID());
@@ -341,17 +555,18 @@ int main(int argc, char* argv[])
 
         sphere.render();
 
+        std::string path = "../../img/" + _type + "/error/";
+        path = path + name + "/error";
+        std::string number = std::to_string(i);
+        std::stringstream ss;
+        ss << std::setw(5) << std::setfill('0') << number;
+        path = path + ss.str() + ".jpg";
+        saveScreenshot(path, SCR_WIDTH / 5, SCR_HEIGHT / 5);
+
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
         glfwPollEvents();
-
-        std::string path = "../../img/cook/cook";
-        std::string number = std::to_string(i);
-        std::stringstream ss;
-        ss << std::setw(4) << std::setfill('0') << number;
-        path = path + ss.str() + ".jpg";
-        saveScreenshot(path, SCR_WIDTH/5, SCR_HEIGHT/5);
     }
 
     // optional: de-allocate all resources once they've outlived their purpose:
@@ -363,6 +578,20 @@ int main(int argc, char* argv[])
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
     glfwTerminate();
+    return 0;
+}
+#endif
+
+
+#ifdef MAKE_LABEL
+int main()
+{
+    ParameterSample params;
+    //std::vector<std::array<float, 7>> samples = cookParams.readCookParams("../../img/cook/cook_c10_d10_r50_params.bin");
+    //params.makeCookParams("../../img/cook/", 400, 25);
+    //params.makePBRParams("../../img/pbr5/", 400, 25);
+    //std::vector<std::array<float, 5>> samples = params.readPBRParams("../../img/pbr5/pbr_c200_r25_params.bin");
+    
     return 0;
 }
 #endif
@@ -406,7 +635,9 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, (float)deltaTime);
     if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
-        saveScreenshot("screen00.jpg", SCR_WIDTH, SCR_HEIGHT);
+        saveHDRScreenshot("screen00.hdr", SCR_WIDTH, SCR_HEIGHT);
+    //if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS)
+        //switchCubemap();
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
@@ -475,4 +706,57 @@ bool saveScreenshot(std::string filename, int width, int height)
 
     // std::cout << "saving screenshot(" << filename << ")\n";
     return true;
+}
+
+bool saveHDRScreenshot(std::string filename, int width, int height)
+{
+    // row alignment
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+
+    //int nScrSize = SCR_WIDTH * SCR_HEIGHT * 4;
+    int nSize = width * height * 4;
+    float* dataBuffer = (float*)malloc(nSize * sizeof(float));
+    if (!dataBuffer) {
+        std::cout << "saveScreenshot() :: buffer allocation error." << std::endl;
+        return false;
+    }
+
+    // fetch image from the backbuffer
+    glReadPixels((GLint)0, (GLint)0, (GLint)width, (GLint)height, GL_RGBA, GL_FLOAT, dataBuffer);
+
+    stbi_flip_vertically_on_write(true);
+    stbi_write_hdr(filename.c_str(), width, height, 4, dataBuffer);
+
+    free(dataBuffer);
+
+    std::cout << "saving HDR screenshot(" << filename << ")\n";
+    return true;
+}
+
+std::vector<std::string> loadEnvList(std::string filename, int& num)
+{
+    std::ifstream fin;
+
+    fin.open(filename, std::ios::in);
+    std::string line;   // buffer
+    int cnt = 0;        // size counting
+
+    std::vector<std::string> list;      // list of filenames
+
+    if (fin.is_open())
+    {
+        while (std::getline(fin, line))
+        {
+            //std::cout << line << std::endl;
+            list.push_back(line);
+            cnt++;
+        }
+        num = cnt;
+        fin.close();
+    }
+    else
+    {
+        std::cout << "(loadEnvList) unable to open " << filename << std::endl;
+    }
+    return list;
 }

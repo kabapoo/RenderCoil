@@ -2,32 +2,18 @@
 
 Cubemap::Cubemap()
 {
-    id = 0;
-    hdr = 0;
-    fbo = 0;
-    rbo = 0;
-    pShader = nullptr;
+    
 }
 
-Cubemap::Cubemap(const char* vert, const char* frag, const char* fname)
-{
-    pShader = new Shader(vert, frag);
-    setupFramebuffer();
-    loadHDR(fname);
-    setupCubemap();
-    setupMatrices();
-    render();
-}
-
-void Cubemap::setupFramebuffer()
+Cubemap::Cubemap(const char* vert, const char* frag)
 {
     glGenFramebuffers(1, &fbo);
     glGenRenderbuffers(1, &rbo);
+    glGenTextures(1, &hdr);
+    glGenTextures(1, &id);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo);
+    pShader = new Shader(vert, frag);
+    setupMatrices();
 }
 
 void Cubemap::loadHDR(const char* fname)
@@ -38,7 +24,6 @@ void Cubemap::loadHDR(const char* fname)
 
     if (data)
     {
-        glGenTextures(1, &hdr);
         glBindTexture(GL_TEXTURE_2D, hdr);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
 
@@ -56,22 +41,6 @@ void Cubemap::loadHDR(const char* fname)
     }
 }
 
-// setup cubemap to render to and attach to framebuffer
-void Cubemap::setupCubemap()
-{
-    glGenTextures(1, &id);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, id);
-    for (unsigned int i = 0; i < 6; i++)
-    {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, nullptr);
-    }
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-}
-
 // set up projection and view matrices for capturing data onto the 6 cubemap face directions
 void Cubemap::setupMatrices()
 {
@@ -85,8 +54,27 @@ void Cubemap::setupMatrices()
 }
 
 // convert HDR equirectangular environment map to cubemap equivalent
-void Cubemap::render()
+void Cubemap::create()
 {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo);
+    
+    //loadHDR("../../img/envs/Newport_Loft/Newport_Loft_Ref.hdr");
+
+    // setup cubemap to render to and attach to framebuffer
+    glBindTexture(GL_TEXTURE_CUBE_MAP, id);
+    for (unsigned int i = 0; i < 6; i++)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
     pShader->use();
     pShader->setInt("equirectangularMap", 0);
     pShader->setMat4("projection", projection);
@@ -109,15 +97,17 @@ void Cubemap::render()
 
 Irradiancemap::Irradiancemap(const char* vert, const char* frag, Cubemap* p)
 {
+    // init
     pShader = new Shader(vert, frag);
+    glGenTextures(1, &id);
+    // set-ups
     pCubemap = p;
-    create();
+    //create();
 }
 
 // create an irradiance cubemap, and re-scale capture FBO to irradiance scale.
 void Irradiancemap::create()
 {
-    glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_CUBE_MAP, id);
     for (unsigned int i = 0; i < 6; ++i)
     {
@@ -155,14 +145,15 @@ void Irradiancemap::create()
 Prefilteredmap::Prefilteredmap(const char* vert, const char* frag, Cubemap* p)
 {
     pShader = new Shader(vert, frag);
+    glGenTextures(1, &id);
+
     pCubemap = p;
-    create();
+    //create();
 }
 
 // create a pre-filter cubemap, and re-scale capture FBO to pre-filter scale.
 void Prefilteredmap::create()
 {
-    glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_CUBE_MAP, id);
     for (unsigned int i = 0; i < 6; ++i)
     {
@@ -211,15 +202,15 @@ void Prefilteredmap::create()
 BRDFmap::BRDFmap(const char* vert, const char* frag, Cubemap* p)
 {
     pShader = new Shader(vert, frag);
+    glGenTextures(1, &id);
+
     pCubemap = p;
-    create();
+    //create();
 }
 
 // create a pre-filter cubemap, and re-scale capture FBO to pre-filter scale.
 void BRDFmap::create()
 {
-    glGenTextures(1, &id);
-
     // pre-allocate enough memory for the LUT texture.
     glBindTexture(GL_TEXTURE_2D, id);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 512, 512, 0, GL_RG, GL_FLOAT, 0);

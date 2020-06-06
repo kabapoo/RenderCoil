@@ -16,9 +16,13 @@ uniform int lightType;
 // view
 uniform vec3 viewPos;
 // material
-uniform vec3 cookColor;
-uniform vec3 cookFresnel;
-uniform float cookRoughness;
+uniform vec3 cookColor1;
+uniform vec3 cookFresnel1;
+uniform float cookRoughness1;
+uniform vec3 cookColor2;
+uniform vec3 cookFresnel2;
+uniform float cookRoughness2;
+
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -68,41 +72,32 @@ void main()
 	vec3 H = normalize(L + V);
 	vec3 R = reflect(-V, N);
 
-	float distance = length(lightPos - FragPos);
-	float attenuation = 1.0 / (distance * distance);
-	vec3 radiance = lightColor * attenuation;
-	radiance = vec3(0.0);
+	vec3 F1 = FresnelSchlick(clamp(dot(H, V), 0.0, 1.0), cookFresnel1);
+	vec3 F2 = FresnelSchlick(clamp(dot(H, V), 0.0, 1.0), cookFresnel2);
 
-	float NdotL = max(dot(N, L), 0.0);
-
-	vec3 result = vec3(0.0);
-
-	float NDF = DistributionGGX(N, H, cookRoughness);
-	float G = GeometrySmith(N, V, L, cookRoughness);
-	vec3 F = FresnelSchlick(clamp(dot(H, V), 0.0, 1.0), cookFresnel);
-
-	vec3 Ks = F;
-	vec3 Kd = vec3(1.0) - Ks;
-
-	vec3 numerator = NDF * G * F;
-	float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-	vec3 specular = numerator / max(denominator, 0.001);
-
-	result = (Kd * cookColor / 3.141592 + specular) * radiance * NdotL;
+	vec3 Ks1 = F1;
+	vec3 Kd1 = vec3(1.0) - Ks1;
+	vec3 Ks2 = F2;
+	vec3 Kd2 = vec3(1.0) - Ks2;
 
 	// ambient lighting (we now use IBL as the ambient term)
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 diffuse      = irradiance * cookColor;
+    vec3 diffuse1   = irradiance * cookColor1;
+	vec3 diffuse2   = irradiance * cookColor2;
     
 	// sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
     const float MAX_REFLECTION_LOD = 4.0;
-    vec3 prefilteredColor = textureLod(prefilterMap, R,  cookRoughness * MAX_REFLECTION_LOD).rgb;    
-    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), cookRoughness)).rg;
-    specular = prefilteredColor * (F * brdf.x + brdf.y);
+    vec3 prefilteredColor1 = textureLod(prefilterMap, R,  cookRoughness1 * MAX_REFLECTION_LOD).rgb;    
+	vec3 prefilteredColor2 = textureLod(prefilterMap, R,  cookRoughness2 * MAX_REFLECTION_LOD).rgb;    
+    vec2 brdf1  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), cookRoughness1)).rg;
+	vec2 brdf2  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), cookRoughness2)).rg;
+    vec3 specular1 = prefilteredColor1 * (F1 * brdf1.x + brdf1.y);
+	vec3 specular2 = prefilteredColor2 * (F2 * brdf2.x + brdf2.y);
 	
-	vec3 ambient = Kd * diffuse + specular;
+	vec3 ambient1 = Kd1 * diffuse1 + specular1;
+	vec3 ambient2 = Kd2 * diffuse2 + specular2;
 
-	vec3 color = ambient + result;
+	vec3 color = sqrt((ambient1 - ambient2) * (ambient1 - ambient2)) * 1.0f;
 	
 	// HDR tonemapping
 	color = color / (color + vec3(1.0));

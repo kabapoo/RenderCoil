@@ -13,6 +13,9 @@ class Cubemap
 {
 private:
     unsigned int id;
+    //unsigned int irradi_id;
+    //unsigned int mip_id;
+    //unsigned int brdf_id;
     unsigned int hdr;
     unsigned int fbo;
     unsigned int rbo;
@@ -20,16 +23,16 @@ private:
     glm::mat4 views[6];
     
     Cube cube;
+    Quad quad;
 
 public:
     Cubemap();
-    Cubemap(const char* vert, const char* frag, const char* fname);
+    Cubemap(const char* vert, const char* frag);
 
-    void setupFramebuffer();
     void loadHDR(const char* fname);
-    void setupCubemap();
     void setupMatrices();
-    void render();
+    void create();
+    void createIrradianceMap();
 
     unsigned int getID() const { return id; }
     unsigned int getHDR() const { return hdr; }
@@ -39,6 +42,9 @@ public:
     glm::mat4 getViews(int i) const { return views[i]; }
 
     Shader* pShader;
+    //Shader* pIrradiShader;
+    //Shader* pMipShader;
+    //Shader* pBRDFShader;
 };
 
 class Irradiancemap
