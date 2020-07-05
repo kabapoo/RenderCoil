@@ -4,6 +4,7 @@
 #define LIGHT_POINT 0
 #define LIGHT_DIRECTIONAL 1
 #define LIGHT_SPOT 2
+#define NO_LIGHT -1
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

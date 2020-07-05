@@ -22,6 +22,9 @@ public:
     }
 
     void setColor(glm::vec3 color);
+    void setRoughness(float r);
+    void setFresnel(glm::vec3 f);
+    void setMetallic(float m);
     glm::vec3 getColor() const { return mColor; }
     glm::vec3 getFresnel() const { return mFresnel; }
     float getRoughness() const { return mRoughness; }

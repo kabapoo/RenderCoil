@@ -15,7 +15,14 @@ Sphere sphere(64, 64);
 Cube cube;
 
 // light
-Light light(glm::vec3(0.8f, 1.5f, 2.3f), glm::vec3(1.0f, 1.0f, 1.0f), LIGHT_POINT);
+Light light(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(1.0f, 1.0f, 1.0f), NO_LIGHT);
+
+// material
+glm::vec3 color(0.8f, 0.4f, 0.2f);
+glm::vec3 fresnel(0.74, 0.74, 0.74);
+float rough = 0.8f;
+float metal = 1.0f;
+Material material(color, rough, fresnel, metal);
 
 // timing
 double deltaTime = 0.0;	// time between current frame and last frame
@@ -79,26 +86,25 @@ int main(int argc, char* argv[])
     Prefilteredmap prefiltermap("./shader_code/cubemap.vert", "./shader_code/prefilter.frag", &cubemap);
     BRDFmap brdfmap("./shader_code/brdf.vert", "./shader_code/brdf.frag", &cubemap);
     Shader backgroundShader("./shader_code/background.vert", "./shader_code/background.frag");
-#ifdef PBR
+
     pbrShader.use();
     pbrShader.setInt("irradianceMap", 0);
     pbrShader.setInt("prefilterMap", 1);
     pbrShader.setInt("brdfLUT", 2);
-#endif
-#ifdef COOK
     cookShader.use();
     cookShader.setInt("irradianceMap", 0);
     cookShader.setInt("prefilterMap", 1);
     cookShader.setInt("brdfLUT", 2);
-#endif
+
     int num = 0;
     std::vector<std::string> list;
     std::string env_list_path = env_path + "env_list.txt";
     list = loadEnvList(env_list_path, num);
-    std::string env_name = env_path + list[0] + "/" + list[0] + "_Ref.hdr";
+    std::string env_name = env_path + list[3] + "/" + list[3] + ".hdr";
     std::cout << env_name << std::endl;
     cubemap.loadHDR(env_name.c_str());
     cubemap.create();
+#ifdef ENVIRONMENT
     irradiancemap.create();
     prefiltermap.create();
     brdfmap.create();
@@ -107,12 +113,13 @@ int main(int argc, char* argv[])
     backgroundShader.setInt("environmentMap", 0);
     glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
     backgroundShader.setMat4("projection", projection);
-
+#endif
     // then before rendering, configure the viewport to the original framebuffer's screen dimensions
     int scrWidth, scrHeight;
     glfwGetFramebufferSize(window, &scrWidth, &scrHeight);
     glViewport(0, 0, scrWidth, scrHeight);
 
+    
 
     // render loop
     // -----------
@@ -133,28 +140,12 @@ int main(int argc, char* argv[])
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 view = camera.GetViewMatrix();
-
-        // pbr config
-#ifdef PBR
-        pbrShader.use();
-        glm::mat4 model = glm::mat4(1.0f);
-        pbrShader.setMat4("projection", projection);
-        pbrShader.setMat4("model", model);
-        pbrShader.setMat4("view", view);
-        pbrShader.setVec3("camPos", camera.Position);
-        pbrShader.setFloat("ao", 1.0f);
-        pbrShader.setVec3("albedo", 0.146f, 0.504f, 0.862f);
-        pbrShader.setFloat("metallic", 0.124f);
-        pbrShader.setFloat("roughness", 0.474f);
-#endif
-#ifdef COOK
-        cookShader.use();
-        setCommonUniforms(&cookShader);
-        cookShader.setVec3("cookColor", glm::vec3(0.5f, 0.3f, 0.8f));
-        cookShader.setFloat("cookRoughness", 0.02f);
-        cookShader.setVec3("cookFresnel", glm::vec3(0.9f, 0.4f, 0.4f));
-#endif
+        // shader selection
+        if (shading_mode == 0)
+            setCookTorranceShader(&cookShader, &light, &camera, &material);
+        else
+            setPBShader(&pbrShader, &light, &camera, &material);
+        
         // bind pre-computed IBL data
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, irradiancemap.getID());
@@ -164,14 +155,15 @@ int main(int argc, char* argv[])
         glBindTexture(GL_TEXTURE_2D, brdfmap.getID());
 
         sphere.render();
-        
+#ifdef BACKGROUND        
         // skybox
         backgroundShader.use();
+        glm::mat4 view = camera.GetViewMatrix();
         backgroundShader.setMat4("view", view);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap.getID());
         cube.render();
-        
+#endif        
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
@@ -266,34 +258,27 @@ int main(int argc, char* argv[])
     backgroundShader.setMat4("projection", projection);
 
     ParameterSample params;
-    int c = 10000;
-    int d = 0;
-    int r = 1;
-#ifdef PBR
-    std::string name = "pbr_c" + std::to_string(c);
-    if (d != 0) name = name + "_d" + std::to_string(d);
-    name = name + "_r" + std::to_string(r);
-    std::string readPath = "../../img/pbr5/" + name + "_params.bin";
+#if (SHADER == PBR)
+    std::string readPath = pbr5_path + param_name;
     std::vector<std::array<float, 5>> samples = params.readPBRParams(readPath.c_str());
 #endif
-#ifdef COOK
-    std::string name = "cook_c" + std::to_string(c);
-    if (d != 0) name = name + "_d" + std::to_string(d);
-    name = name + "_r" + std::to_string(r);
-    std::string readPath = "../../img/cook/" + name + "_params.bin";
+#if (SHADER == COOK)
+    std::string readPath = cook_path + param_name;
     std::vector<std::array<float, 7>> samples = params.readCookParams(readPath.c_str());
 #endif
     // loading env list
     int num = 0;
     std::vector<std::string> list;
-    std::string env_list_path = env_path + "env_list.txt";
+    std::string env_list_path = env_path + env_list_name;
     list = loadEnvList(env_list_path, num);
+    num = env_end_index - env_start_index;
     // sample size for loop
     int sampleSize = samples.size();
-    int sampleBatch = sampleSize / 10;
+    int sampleBatch = sampleSize / num;
     for (int j = 0; j < num; ++j)
     {
-        std::string env_name = env_path + list[j] + "/" + list[j] + "_Ref.hdr";
+        int env_index = env_start_index + j;
+        std::string env_name = env_path + list[env_index] + "/" + list[env_index] + ".hdr";
         cubemap.loadHDR(env_name.c_str());
         cubemap.create();
         irradiancemap.create();
@@ -308,6 +293,9 @@ int main(int argc, char* argv[])
         for (int i = 0; i < sampleBatch; ++i)
         {
             int sampleIndex = sampleBatch * j + i;
+
+            //camera.SetRandomPosition();
+
             // per-frame time logic
                 // --------------------
             double currentFrame = glfwGetTime();
@@ -318,7 +306,7 @@ int main(int argc, char* argv[])
             // ------
             glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-#ifdef PBR
+#if (SHADER == PBR)
             std::array<float, 5> param = samples[i];
             pbrShader.use();
             glm::mat4 view = camera.GetViewMatrix();
@@ -332,19 +320,17 @@ int main(int argc, char* argv[])
             pbrShader.setFloat("metallic", param[3]);
             pbrShader.setFloat("roughness", param[4]);
 
-            std::string path = "../../img/pbr5/";
-            path = path + name + "/pbr";
+            std::string path = pbr5_path + folder_name + "/pbr5";
 #endif
-#ifdef COOK
+#if (SHADER == COOK)
             std::array<float, 7> param = samples[sampleIndex];
             cookShader.use();
             setCommonUniforms(&cookShader);
-            cookShader.setVec3("cookColor", glm::vec3(param[0], param[1], param[2]));
-            cookShader.setFloat("cookRoughness", param[3]);
-            cookShader.setVec3("cookFresnel", glm::vec3(param[4], param[5], param[6]));
+            cookShader.setVec3("albedo", glm::vec3(param[0], param[1], param[2]));
+            cookShader.setFloat("roughness", param[3]);
+            cookShader.setVec3("fresnel", glm::vec3(param[4], param[5], param[6]));
 
-            std::string path = "../../img/cook/";
-            path = path + name + "/cook";
+            std::string path = cook_path + folder_name + "/cook";
 #endif
             // bind pre-computed IBL data
             glActiveTexture(GL_TEXTURE0);
@@ -355,13 +341,13 @@ int main(int argc, char* argv[])
             glBindTexture(GL_TEXTURE_2D, brdfmap.getID());
 
             sphere.render();
-            
+#ifdef ENABLE_SCREENSHOT
             std::string number = std::to_string(sampleIndex);
             std::stringstream ss;
             ss << std::setw(5) << std::setfill('0') << number;
             path = path + ss.str() + ".jpg";
             saveScreenshot(path, SCR_WIDTH / 10, SCR_HEIGHT / 10);
-            
+#endif
             // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
             // -------------------------------------------------------------------------------
             glfwSwapBuffers(window);
@@ -436,11 +422,17 @@ int main(int argc, char* argv[])
     //Shader phongShader("./shader_code/phong_shader.vert", "./shader_code/phong_shader.frag");
     Shader cookShader("./shader_code/cook_shader.vert", "./shader_code/cook_error.frag");
     Shader pbrShader("./shader_code/pbr.vert", "./shader_code/pbr_error.frag");
-    Cubemap cubemap("./shader_code/cubemap.vert", "./shader_code/cubemap.frag", "../../img/envs/Newport_Loft/Newport_Loft_Ref.hdr");
+    Cubemap cubemap("./shader_code/cubemap.vert", "./shader_code/cubemap.frag");
     Irradiancemap irradiancemap("./shader_code/cubemap.vert", "./shader_code/irradiance.frag", &cubemap);
     Prefilteredmap prefiltermap("./shader_code/cubemap.vert", "./shader_code/prefilter.frag", &cubemap);
     BRDFmap brdfmap("./shader_code/brdf.vert", "./shader_code/brdf.frag", &cubemap);
     Shader backgroundShader("./shader_code/background.vert", "./shader_code/background.frag");
+
+    cubemap.loadHDR("../../img/envs/Ueno-Shrine/03-Ueno-Shrine_3k.hdr");
+    cubemap.create();
+    irradiancemap.create();
+    prefiltermap.create();
+    brdfmap.create();
 
     pbrShader.use();
     pbrShader.setInt("irradianceMap", 0);
@@ -554,7 +546,7 @@ int main(int argc, char* argv[])
         glBindTexture(GL_TEXTURE_2D, brdfmap.getID());
 
         sphere.render();
-
+        
         std::string path = "../../img/" + _type + "/error/";
         path = path + name + "/error";
         std::string number = std::to_string(i);
@@ -562,7 +554,7 @@ int main(int argc, char* argv[])
         ss << std::setw(5) << std::setfill('0') << number;
         path = path + ss.str() + ".jpg";
         saveScreenshot(path, SCR_WIDTH / 5, SCR_HEIGHT / 5);
-
+        
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
@@ -588,14 +580,61 @@ int main()
 {
     ParameterSample params;
     //std::vector<std::array<float, 7>> samples = cookParams.readCookParams("../../img/cook/cook_c10_d10_r50_params.bin");
-    //params.makeCookParams("../../img/cook/", 400, 25);
-    //params.makePBRParams("../../img/pbr5/", 400, 25);
+    //params.makeCookParams(cook_path, 40000, 1);
+    params.makePBRParams(pbr5_path, 10000, 1);
     //std::vector<std::array<float, 5>> samples = params.readPBRParams("../../img/pbr5/pbr_c200_r25_params.bin");
     
     return 0;
 }
 #endif
 
+void setCookTorranceShader(Shader* pShader, Light* pLight, Camera* pCamera, Material* pMaterial)
+{
+    pShader->use();
+    // pass projection, view, and model matrices to shader
+    glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    pShader->setMat4("projection", projection);
+    glm::mat4 view = camera.GetViewMatrix();
+    pShader->setMat4("view", view);
+    glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+    pShader->setMat4("model", model);
+
+    // light
+    pShader->setVec3("lightPos", light.getPosition());
+    pShader->setVec3("lightColor", light.getColor());
+    pShader->setInt("lightType", light.getType());
+
+    // camera uniform variable
+    pShader->setVec3("viewPos", camera.getPosition());
+
+    pShader->setVec3("albedo", pMaterial->getColor());
+    pShader->setFloat("roughness", pMaterial->getRoughness());
+    pShader->setVec3("fresnel", pMaterial->getFresnel());
+}
+
+void setPBShader(Shader* pShader, Light* pLight, Camera* pCamera, Material* pMaterial)
+{
+    pShader->use();
+    // pass projection, view, and model matrices to shader
+    glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    pShader->setMat4("projection", projection);
+    glm::mat4 view = camera.GetViewMatrix();
+    pShader->setMat4("view", view);
+    glm::mat4 model = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+    pShader->setMat4("model", model);
+
+    // light
+    pShader->setVec3("lightPos", light.getPosition());
+    pShader->setVec3("lightColor", light.getColor());
+    pShader->setInt("lightType", light.getType());
+
+    // camera uniform variable
+    pShader->setVec3("camPos", camera.getPosition());
+
+    pShader->setVec3("albedo", pMaterial->getColor());
+    pShader->setFloat("roughness", pMaterial->getRoughness());
+    pShader->setFloat("metallic", pMaterial->getMetallic());
+}
 
 void setCommonUniforms(Shader* pShader)
 {

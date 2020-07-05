@@ -12,8 +12,8 @@ void ParameterSample::makeCookParams(std::string path, int cent_num, int rand_nu
     float centrics[7];
     float param[7];
 
-    std::string filename = path + "cook_c" + std::to_string(cent_num);
-    filename = filename + "_r" + std::to_string(rand_num);
+    std::string filename = path + "cook_" + std::to_string(cent_num);
+    filename = filename + "_" + std::to_string(rand_num);
     filename = filename + "_params.bin";
     fout.open(filename.c_str(), std::ios::out | std::ios::binary);
     fout.write((char*)&cent_num, sizeof(int));
@@ -45,8 +45,8 @@ void ParameterSample::makePBRParams(std::string path, int cent_num, int rand_num
     float centrics[5];
     float param[5];
 
-    std::string filename = path + "pbr_c" + std::to_string(cent_num);
-    filename = filename + "_r" + std::to_string(rand_num);
+    std::string filename = path + "pbr5_" + std::to_string(cent_num);
+    filename = filename + "_" + std::to_string(rand_num);
     filename = filename + "_params.bin";
     fout.open(filename.c_str(), std::ios::out | std::ios::binary);
     fout.write((char*)&cent_num, sizeof(int));

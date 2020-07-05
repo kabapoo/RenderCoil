@@ -16,9 +16,9 @@ uniform int lightType;
 // view
 uniform vec3 viewPos;
 // material
-uniform vec3 cookColor;
-uniform vec3 cookFresnel;
-uniform float cookRoughness;
+uniform vec3 albedo;
+uniform vec3 fresnel;
+uniform float roughness;
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -59,6 +59,11 @@ vec3 FresnelSchlick(float theta, vec3 F0)
 	return F0 + (1.0 - F0) * pow(1.0 - theta, 5.0);
 }
 
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
 void main()
 {
 	// linearly interpolate between both textures (80% container, 20% awesomeface)
@@ -71,44 +76,45 @@ void main()
 	float distance = length(lightPos - FragPos);
 	float attenuation = 1.0 / (distance * distance);
 	vec3 radiance = lightColor * attenuation;
-	radiance = vec3(0.0);
 
 	float NdotL = max(dot(N, L), 0.0);
 
 	vec3 result = vec3(0.0);
+	vec3 ambient = vec3(0.0);
+	vec3 specular = vec3(0.0);
+	vec3 diffuse = vec3(0.0);
+	vec3 F = FresnelSchlick(clamp(dot(H, V), 0.0, 1.0), fresnel);
 
-	float NDF = DistributionGGX(N, H, cookRoughness);
-	float G = GeometrySmith(N, V, L, cookRoughness);
-	vec3 F = FresnelSchlick(clamp(dot(H, V), 0.0, 1.0), cookFresnel);
+	if (lightType > -1) {
+		float NDF = DistributionGGX(N, H, roughness);
+		float G = GeometrySmith(N, V, L, roughness);
+	
+		vec3 numerator = NDF * G * F;
+		float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+		specular = numerator / max(denominator, 0.001);
 
-	vec3 Ks = F;
-	vec3 Kd = vec3(1.0) - Ks;
-
-	vec3 numerator = NDF * G * F;
-	float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-	vec3 specular = numerator / max(denominator, 0.001);
-
-	result = (Kd * cookColor / 3.141592 + specular) * radiance * NdotL;
-
+		result = (albedo + specular) * radiance * NdotL;
+	}
 	// ambient lighting (we now use IBL as the ambient term)
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 diffuse      = irradiance * cookColor;
+    //vec3 diffuse      = irradiance * cookColor;
+	diffuse = irradiance * albedo;
     
 	// sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
     const float MAX_REFLECTION_LOD = 4.0;
-    vec3 prefilteredColor = textureLod(prefilterMap, R,  cookRoughness * MAX_REFLECTION_LOD).rgb;    
-    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), cookRoughness)).rg;
+    vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
     specular = prefilteredColor * (F * brdf.x + brdf.y);
 	
-	vec3 ambient = Kd * diffuse + specular;
+	ambient = diffuse + specular;
 
 	vec3 color = ambient + result;
+	//vec3 color = result;
 	
 	// HDR tonemapping
 	color = color / (color + vec3(1.0));
 	// gamma
 	color = pow(color, vec3(1.0/2.2));
 
-	//FragColor = mix(vec4(result, 1.0f), texture(texture1, TexCoord), 0.0);
 	FragColor = vec4(color, 1.0f);
 }

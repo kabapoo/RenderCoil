@@ -55,4 +55,20 @@ void Camera::updateCameraVectors()
     // Also re-calculate the Right and Up vector
     Right = glm::normalize(glm::cross(Front, WorldUp));  // Normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
     Up    = glm::normalize(glm::cross(Right, Front));
+    //std::cout << front.x << " " << front.y << " " << front.z << std::endl;
+}
+
+void Camera::SetRandomPosition()
+{
+    Yaw = (float)(rand() % 360 - 180);
+    Pitch = (float)(rand() % 180 - 90);
+    //Yaw = -92.0f;
+    //Pitch = -20.0f;
+    Position.x = -cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+    Position.y = -sin(glm::radians(Pitch));
+    Position.z = -sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+    Position = glm::normalize(Position);
+    Position = Position * 3.0f;
+    //std::cout << Position.x << " " << Position.y << " " << Position.z << std::endl;
+    updateCameraVectors();
 }
