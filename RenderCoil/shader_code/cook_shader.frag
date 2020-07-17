@@ -83,7 +83,7 @@ void main()
 	vec3 ambient = vec3(0.0);
 	vec3 specular = vec3(0.0);
 	vec3 diffuse = vec3(0.0);
-	vec3 F = FresnelSchlick(clamp(dot(H, V), 0.0, 1.0), fresnel);
+	vec3 F = fresnelSchlickRoughness(clamp(dot(N, V), 0.0, 1.0), fresnel, roughness);
 
 	if (lightType > -1) {
 		float NDF = DistributionGGX(N, H, roughness);
@@ -91,25 +91,23 @@ void main()
 	
 		vec3 numerator = NDF * G * F;
 		float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-		specular = numerator / max(denominator, 0.001);
+		specular = numerator / max(denominator, 0.001);// * vec3(0.003, 0.018, 0.006) ;
 
-		result = (albedo + specular) * radiance * NdotL;
+		result = (albedo + specular) * radiance * NdotL * 1.0;
 	}
 	// ambient lighting (we now use IBL as the ambient term)
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    //vec3 diffuse      = irradiance * cookColor;
-	diffuse = irradiance * albedo;
+	diffuse = irradiance * albedo * 1.0;
     
 	// sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
     const float MAX_REFLECTION_LOD = 4.0;
-    vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
-    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
-    specular = prefilteredColor * (F * brdf.x + brdf.y);
+    vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb * 1.0;
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg * 1.0;
+    specular = prefilteredColor * (F * brdf.x + brdf.y) * 1.0;
 	
-	ambient = diffuse + specular;
+	ambient = (diffuse + specular) * 1.0;
 
-	vec3 color = ambient + result;
-	//vec3 color = result;
+	vec3 color = (ambient + result) * 1.0;
 	
 	// HDR tonemapping
 	color = color / (color + vec3(1.0));

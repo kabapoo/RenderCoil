@@ -28,35 +28,45 @@
 #include "environment.h"
 #include "sample_io.h"
 
-//#define REALTIME_RENDER
-#define SAMPLE_RENDER
-//#define MAKE_LABEL
+#define REALTIME_RENDER
+//#define SAMPLE_RENDER
+//#define SIMPLE_MAIN
 //#define ERROR_RENDER
 #define ENABLE_SCREENSHOT
 #define ENVIRONMENT
 #define BACKGROUND
 
-#define COOK 0
-#define PBR 1
-#define SHADER COOK
-
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow* window);
+
+GLFWwindow* initGL();
 bool saveScreenshot(std::string filename, int width, int height);
 bool saveHDRScreenshot(std::string filename, int width, int height);
-void setCommonUniforms(Shader* pShader);
 void setCookTorranceShader(Shader* pShader, Light* pLight, Camera* pCamera, Material* pMaterial);
 void setPBShader(Shader* pShader, Light* pLight, Camera* pCamera, Material* pMaterial);
+void setCookErrorShader(Shader* pShader, Light* pLight, Camera* pCamera, Material* pMaterial1, Material* pMaterial2);
 std::vector<std::string> loadEnvList(std::string filename, int& num);
 
 std::string env_path = "../../img/envs/";
-std::string cook_path = "../../img/cook/";
-std::string pbr5_path = "../../img/pbr5/";
-std::string param_name = "cook_20000_20_params.bin";
-std::string folder_name = "pbr5_10000_1_64";
+std::string img_path = "../../img/";
+std::string param_path = "../../Tensorflow/params/";
+std::string param_name = "pbr_test.bin";
+std::string folder_name = "pbr_test";
 std::string env_list_name = "env_list.txt";
 
-const int env_start_index = 27;
-const int env_end_index = 28;
+// settings
+const unsigned int SCR_WIDTH = 640;
+const unsigned int SCR_HEIGHT = 640;
+double lastX = SCR_WIDTH / 2.0;
+double lastY = SCR_HEIGHT / 2.0;
+bool firstMouse = true;
+int shading_mode = 1;
+
+// timing
+double deltaTime = 0.0;	// time between current frame and last frame
+double lastFrame = 0.0;
+
+const int env_start_index = 10;
+const int env_end_index = 20;

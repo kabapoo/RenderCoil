@@ -205,3 +205,24 @@ std::vector<std::array<float, 5>> ParameterSample::readPBRBinary(const char* fil
     fin.close();
     return samples;
 }
+
+std::vector<std::array<float, 8>> ParameterSample::loadParams(const char* filename, int rows)
+{
+    fin.open(filename, std::ios::in | std::ios::binary);
+
+    std::vector<std::array<float, 8>> samples;
+    std::array<float, 8> temp;
+
+    float param[8];
+    for (int i = 0; i < rows; ++i)
+    {
+        fin.read((char*)param, sizeof(param));
+        for (int j = 0; j < 8; ++j)
+        {
+            temp[j] = param[j];
+        }
+        samples.push_back(temp);
+    }
+    fin.close();
+    return samples;
+}

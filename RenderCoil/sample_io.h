@@ -22,4 +22,5 @@ public:
 	std::vector<std::array<float, 5>> readPBRParams(const char* filename);
 	std::vector<std::array<float, 7>> readCookBinary(const char* filename, int rows);
 	std::vector<std::array<float, 5>> readPBRBinary(const char* filename, int rows);
+	std::vector<std::array<float, 8>> loadParams(const char* filename, int rows);
 };

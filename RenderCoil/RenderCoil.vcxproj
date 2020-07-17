@@ -176,6 +176,22 @@
     <ClInclude Include="stb_image_resize.h" />
     <ClInclude Include="stb_image_write.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="shader_code\background.frag" />
+    <None Include="shader_code\background.vert" />
+    <None Include="shader_code\brdf.frag" />
+    <None Include="shader_code\brdf.vert" />
+    <None Include="shader_code\cook_error.frag" />
+    <None Include="shader_code\cook_shader.frag" />
+    <None Include="shader_code\cook_shader.vert" />
+    <None Include="shader_code\cubemap.frag" />
+    <None Include="shader_code\cubemap.vert" />
+    <None Include="shader_code\irradiance.frag" />
+    <None Include="shader_code\pbr.frag" />
+    <None Include="shader_code\pbr.vert" />
+    <None Include="shader_code\pbr_error.frag" />
+    <None Include="shader_code\prefilter.frag" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

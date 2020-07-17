@@ -41,6 +41,37 @@ void Cubemap::loadHDR(const char* fname)
     }
 }
 
+void Cubemap::loadEnvList(std::string path, std::string listname)
+{
+    std::ifstream fin;
+    
+    std::string env_list_path = std::string(path) + std::string(listname);
+    fin.open(env_list_path, std::ios::in);
+    std::string line;   // buffer
+
+    if (fin.is_open())
+    {
+        while (std::getline(fin, line))
+        {
+            //std::cout << line << std::endl;
+            list.push_back(line);
+        }
+        fin.close();
+    }
+    else
+    {
+        std::cout << "(loadEnvFromList) unable to open " << path << std::endl;
+    }
+}
+
+void Cubemap::loadHDRfromList(std::string path, int idx)
+{
+    std::string env_path = path + list[idx] + "/" + list[idx] + ".hdr";
+    loadHDR(env_path.c_str());
+    std::cout << env_path << std::endl;
+}
+
+
 // set up projection and view matrices for capturing data onto the 6 cubemap face directions
 void Cubemap::setupMatrices()
 {

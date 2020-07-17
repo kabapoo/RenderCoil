@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\GLSL">
+      <UniqueIdentifier>{14d1e16d-87c9-4c43-a3a3-75207bc27c7b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="glad.c">
@@ -86,5 +89,49 @@
     <ClInclude Include="coil.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shader_code\background.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\background.vert">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\brdf.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\brdf.vert">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\cook_error.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\cook_shader.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\cook_shader.vert">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\cubemap.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\cubemap.vert">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\irradiance.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\pbr.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\pbr.vert">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\pbr_error.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
+    <None Include="shader_code\prefilter.frag">
+      <Filter>Source Files\GLSL</Filter>
+    </None>
   </ItemGroup>
 </Project>

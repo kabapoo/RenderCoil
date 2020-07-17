@@ -5,6 +5,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "stb_image.h"
 #include <iostream>
+#include <vector>
+#include <fstream>
+#include <string>
+
 
 #include "shader.h"
 #include "polygon.h"
@@ -13,14 +17,12 @@ class Cubemap
 {
 private:
     unsigned int id;
-    //unsigned int irradi_id;
-    //unsigned int mip_id;
-    //unsigned int brdf_id;
     unsigned int hdr;
     unsigned int fbo;
     unsigned int rbo;
     glm::mat4 projection;
     glm::mat4 views[6];
+    std::vector<std::string> list;
     
     Cube cube;
     Quad quad;
@@ -30,9 +32,10 @@ public:
     Cubemap(const char* vert, const char* frag);
 
     void loadHDR(const char* fname);
+    void loadEnvList(std::string path, std::string listname);
+    void loadHDRfromList(std::string path, int idx);
     void setupMatrices();
     void create();
-    void createIrradianceMap();
 
     unsigned int getID() const { return id; }
     unsigned int getHDR() const { return hdr; }
@@ -42,9 +45,6 @@ public:
     glm::mat4 getViews(int i) const { return views[i]; }
 
     Shader* pShader;
-    //Shader* pIrradiShader;
-    //Shader* pMipShader;
-    //Shader* pBRDFShader;
 };
 
 class Irradiancemap

@@ -16,12 +16,12 @@ uniform int lightType;
 // view
 uniform vec3 viewPos;
 // material
-uniform vec3 cookColor1;
-uniform vec3 cookFresnel1;
-uniform float cookRoughness1;
-uniform vec3 cookColor2;
-uniform vec3 cookFresnel2;
-uniform float cookRoughness2;
+uniform vec3 albedo1;
+uniform vec3 fresnel1;
+uniform float roughness1;
+uniform vec3 albedo2;
+uniform vec3 fresnel2;
+uniform float roughness2;
 
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
@@ -63,6 +63,11 @@ vec3 FresnelSchlick(float theta, vec3 F0)
 	return F0 + (1.0 - F0) * pow(1.0 - theta, 5.0);
 }
 
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
 void main()
 {
 	// linearly interpolate between both textures (80% container, 20% awesomeface)
@@ -72,32 +77,27 @@ void main()
 	vec3 H = normalize(L + V);
 	vec3 R = reflect(-V, N);
 
-	vec3 F1 = FresnelSchlick(clamp(dot(H, V), 0.0, 1.0), cookFresnel1);
-	vec3 F2 = FresnelSchlick(clamp(dot(H, V), 0.0, 1.0), cookFresnel2);
-
-	vec3 Ks1 = F1;
-	vec3 Kd1 = vec3(1.0) - Ks1;
-	vec3 Ks2 = F2;
-	vec3 Kd2 = vec3(1.0) - Ks2;
+	vec3 F1 = fresnelSchlickRoughness(clamp(dot(N, V), 0.0, 1.0), fresnel1, roughness1);
+	vec3 F2 = fresnelSchlickRoughness(clamp(dot(N, V), 0.0, 1.0), fresnel2, roughness2);
 
 	// ambient lighting (we now use IBL as the ambient term)
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 diffuse1   = irradiance * cookColor1;
-	vec3 diffuse2   = irradiance * cookColor2;
+    vec3 diffuse1   = irradiance * albedo1;
+	vec3 diffuse2   = irradiance * albedo2;
     
 	// sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
     const float MAX_REFLECTION_LOD = 4.0;
-    vec3 prefilteredColor1 = textureLod(prefilterMap, R,  cookRoughness1 * MAX_REFLECTION_LOD).rgb;    
-	vec3 prefilteredColor2 = textureLod(prefilterMap, R,  cookRoughness2 * MAX_REFLECTION_LOD).rgb;    
-    vec2 brdf1  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), cookRoughness1)).rg;
-	vec2 brdf2  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), cookRoughness2)).rg;
+    vec3 prefilteredColor1 = textureLod(prefilterMap, R,  roughness1 * MAX_REFLECTION_LOD).rgb;    
+	vec3 prefilteredColor2 = textureLod(prefilterMap, R,  roughness2 * MAX_REFLECTION_LOD).rgb;    
+    vec2 brdf1  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness1)).rg;
+	vec2 brdf2  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness2)).rg;
     vec3 specular1 = prefilteredColor1 * (F1 * brdf1.x + brdf1.y);
 	vec3 specular2 = prefilteredColor2 * (F2 * brdf2.x + brdf2.y);
 	
-	vec3 ambient1 = Kd1 * diffuse1 + specular1;
-	vec3 ambient2 = Kd2 * diffuse2 + specular2;
+	vec3 ambient1 = diffuse1 + specular1;
+	vec3 ambient2 = diffuse2 + specular2;
 
-	vec3 color = sqrt((ambient1 - ambient2) * (ambient1 - ambient2)) * 1.0f;
+	vec3 color = sqrt((ambient1 - ambient2) * (ambient1 - ambient2));
 	
 	// HDR tonemapping
 	color = color / (color + vec3(1.0));
